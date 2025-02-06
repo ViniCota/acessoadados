@@ -1,0 +1,189 @@
+unit Unit2;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants,
+  System.Classes,
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Data.DB, Vcl.Grids,
+  Vcl.DBGrids, Vcl.StdCtrls, FireDAC.Comp.Client, Vcl.ExtCtrls, Vcl.DBCtrls,
+  unit1,
+  Vcl.ComCtrls;
+
+type
+  TForm2 = class(TForm)
+    btnInserir: TButton; // ID do produto (campo bloqueado)
+    btnDeletar: TButton; // Botão para deletar
+    Edit2: TEdit; // Produto
+    Edit3: TEdit; // Quantidade
+    Edit4: TEdit;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    ListView1: TListView;
+    procedure FormCreate(Sender: TObject);
+    procedure btnInserirClick(Sender: TObject);
+    procedure btnDeletarClick(Sender: TObject); // Ação para deletar
+  private
+    DataSource1: TDataSource;
+    fbanco: TDM;
+    procedure LerTabela;
+    procedure InserirProduto;
+    procedure DeletarProduto; // Método para deletar
+  public
+  end;
+
+var
+  Form2: TForm2;
+
+implementation
+
+{$R *.dfm}
+
+// Método para carregar os dados da tabela no ListView
+procedure TForm2.LerTabela;
+var
+  item: TListItem;
+begin
+  ListView1.Items.Clear;
+  fbanco.FDQuery1.Close;
+  fbanco.FDQuery1.SQL.Text := 'SELECT * FROM estoque';
+  fbanco.FDQuery1.Open;
+  while not fbanco.FDQuery1.Eof do
+  begin
+    item := ListView1.Items.Add;
+    item.Caption := fbanco.FDQuery1.FieldByName('nomeProduto').AsString;
+    item.SubItems.Add(fbanco.FDQuery1.FieldByName('qntProduto').AsString);
+
+    // Formatar o preço como moeda
+    item.SubItems.Add(FormatFloat('R$ #,##0.00', fbanco.FDQuery1.FieldByName('valorProduto').AsFloat));
+
+    fbanco.FDQuery1.Next;
+  end;
+end;
+
+// Configuração inicial do formulário e conexão
+procedure TForm2.FormCreate(Sender: TObject);
+begin
+  if not Assigned(fbanco) then
+  begin
+    fbanco := TDM.Create(self);
+  end;
+
+  if not Assigned(fbanco.Conexao) then
+  begin
+    ShowMessage('Erro: A conexão com o banco de dados não foi inicializada!');
+    Exit;
+  end;
+
+  fbanco.FDQuery1.Connection := fbanco.Conexao; // Atribui a conexão ao FDQuery
+  fbanco.dsSqlConsulta.DataSet := fbanco.FDQuery1;
+
+  LerTabela; // Carregar os dados ao abrir o formulário
+end;
+
+// Método para inserir um novo produto no banco de dados
+procedure TForm2.InserirProduto;
+begin
+  if (Edit2.Text = '') or (Edit3.Text = '') or (Edit4.Text = '') then
+  begin
+    ShowMessage('Por favor, preencha todos os campos!');
+    Exit;
+  end;
+
+  try
+    StrToInt(Edit3.Text); // Verifica a quantidade
+  except
+    on E: EConvertError do
+    begin
+      ShowMessage('Quantidade inválida!');
+      Exit;
+    end;
+  end;
+
+  try
+    StrToFloat(Edit4.Text); // Verifica o preço
+  except
+    on E: EConvertError do
+    begin
+      ShowMessage('Preço inválido!');
+      Exit;
+    end;
+  end;
+
+  if not fbanco.FDQuery1.Connection.Connected then
+  begin
+    ShowMessage('Conexão com o banco de dados não está aberta.');
+    Exit;
+  end;
+
+  fbanco.FDQuery1.Close;
+  fbanco.FDQuery1.SQL.Text := 'INSERT INTO estoque (nomeProduto, qntProduto, valorProduto) ' +
+    'VALUES (:produto, :qntdproduto, :preco)';
+
+  fbanco.FDQuery1.ParamByName('produto').AsString := Edit2.Text;
+  fbanco.FDQuery1.ParamByName('qntdproduto').AsInteger := StrToInt(Edit3.Text);
+  fbanco.FDQuery1.ParamByName('preco').AsFloat := StrToFloat(Edit4.Text);
+
+  try
+    fbanco.FDQuery1.ExecSQL;
+    ShowMessage('Produto inserido com sucesso!');
+    LerTabela; // Atualiza a tabela exibida
+  except
+    on E: Exception do
+    begin
+      ShowMessage('Erro ao inserir produto: ' + E.Message);
+    end;
+  end;
+end;
+
+// Ação do botão "Inserir" (chama o método de inserção)
+procedure TForm2.btnInserirClick(Sender: TObject);
+begin
+  InserirProduto; // Chama o método de inserção
+end;
+
+// Método para deletar um produto selecionado
+procedure TForm2.DeletarProduto;
+var
+  produto: string;
+begin
+  // Verificar se há um item selecionado na ListView
+  if ListView1.Selected = nil then
+  begin
+    ShowMessage('Selecione um produto para excluir!');
+    Exit;
+  end;
+
+  // Obter o nome do produto selecionado
+  produto := ListView1.Selected.Caption;
+
+  // Confirmar a exclusão
+  if MessageDlg('Tem certeza que deseja excluir o produto "' + produto + '"?', mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    // Deletar o produto do banco de dados
+    fbanco.FDQuery1.Close;
+    fbanco.FDQuery1.SQL.Text := 'DELETE FROM estoque WHERE nomeProduto = :produto';
+    fbanco.FDQuery1.ParamByName('produto').AsString := produto;
+
+    try
+      fbanco.FDQuery1.ExecSQL;
+      ShowMessage('Produto excluído com sucesso!');
+      LerTabela; // Atualiza a tabela exibida
+    except
+      on E: Exception do
+      begin
+        ShowMessage('Erro ao excluir produto: ' + E.Message);
+      end;
+    end;
+  end;
+end;
+
+// Ação do botão "Deletar" (chama o método de deletar)
+procedure TForm2.btnDeletarClick(Sender: TObject);
+begin
+  DeletarProduto; // Chama o método de deletar
+end;
+
+end.
+

@@ -1,0 +1,29 @@
+object DM: TDM
+  Height = 480
+  Width = 640
+  object Conexao: TFDConnection
+    Params.Strings = (
+      'Database=lojaestoque'
+      'User_Name=root'
+      'DriverID=MySQL')
+    LoginPrompt = False
+    Left = 48
+    Top = 48
+  end
+  object sqlConsulta: TFDQuery
+    Connection = Conexao
+    SQL.Strings = (
+      'SELECT * FROM estoque')
+    Left = 136
+    Top = 48
+    ParamData = <
+      item
+        Name = 'pConsulta'
+      end>
+  end
+  object dsSqlConsulta: TDataSource
+    DataSet = sqlConsulta
+    Left = 228
+    Top = 48
+  end
+end

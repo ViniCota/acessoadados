@@ -1,0 +1,173 @@
+unit Unit2;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants,
+  System.Classes,
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Data.DB, Vcl.Grids,
+  Vcl.DBGrids, Vcl.StdCtrls, FireDAC.Comp.Client, Vcl.ExtCtrls, Vcl.DBCtrls,
+  unit1,
+  Vcl.ComCtrls;
+
+type
+  TForm2 = class(TForm)
+    btnAtualizar: TButton;
+
+    btnInserir: TButton;
+    Edit1: TEdit; // ID do produto (campo bloqueado)
+    Edit2: TEdit; // Produto
+    Edit3: TEdit; // Quantidade
+    Edit4: TEdit; // Preço
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    ListView1: TListView;
+    procedure FormCreate(Sender: TObject);
+    procedure btnAtualizarClick(Sender: TObject);
+    procedure btnInserirClick(Sender: TObject);
+  private
+    DataSource1: TDataSource;
+    fbanco: TDM;
+    procedure LerTabela;
+    procedure InserirProduto;
+  public
+  end;
+
+var
+  Form2: TForm2;
+
+implementation
+
+{$R *.dfm}
+
+// Método para carregar os dados da tabela no DBGrid
+procedure TForm2.LerTabela;
+var
+  item: TListItem;
+begin
+  ListView1.Items.Clear;
+  fbanco.FDQuery1.Close;
+  fbanco.FDQuery1.SQL.Text := 'SELECT * FROM estoque';
+  // Consulta apenas a coluna "produto"
+  fbanco.FDQuery1.Open;
+  while not fbanco.FDQuery1.Eof do
+  begin
+    item := ListView1.Items.Add;
+    item.Caption := fbanco.FDQuery1.FieldByName('nomeProduto').AsString;
+    item.SubItems.Add(fbanco.FDQuery1.FieldByName('qntProduto').AsString);
+    fbanco.FDQuery1.Next;
+  end;
+end;
+
+// Configuração inicial do formulário e conexão
+procedure TForm2.FormCreate(Sender: TObject);
+begin
+
+  // Verificar se o DataModule e a Conexao estão atribuídos corretamente
+  if not Assigned(fbanco) then
+  begin
+    fbanco := TDM.Create(self);
+  end;
+
+  if not Assigned(fbanco.Conexao) then
+  begin
+    ShowMessage('Erro: A conexão com o banco de dados não foi inicializada!');
+    Exit;
+  end;
+
+  fbanco.FDQuery1.Connection := fbanco.Conexao; // Atribui a conexão ao FDQuery
+  fbanco.dsSqlConsulta.DataSet := fbanco.FDQuery1;
+//  DBGrid1.DataSource := DataSource1;
+  Edit1.Enabled := False; // Bloquear o campo de ID (não editável)
+
+  LerTabela; // Carregar os dados ao abrir o formulário
+end;
+
+// Ação do botão "Atualizar"
+procedure TForm2.btnAtualizarClick(Sender: TObject);
+begin
+  LerTabela; // Atualiza os dados ao clicar no botão
+  ShowMessage('Dados atualizados com sucesso!');
+end;
+
+// Método para inserir um novo produto no banco de dados
+procedure TForm2.InserirProduto;
+begin
+  // Verificar se os campos de entrada não estão vazios
+  if (Edit2.Text = '') or (Edit3.Text = '') or (Edit4.Text = '') then
+  begin
+    ShowMessage('Por favor, preencha todos os campos!');
+    Exit;
+  end;
+
+  // Verificar se os campos numéricos estão corretos
+  try
+    // Verificar se a quantidade e o preço são válidos
+    StrToInt(Edit3.Text); // Verifica a quantidade
+  except
+    on E: EConvertError do
+    begin
+      ShowMessage('Quantidade inválida!');
+      Exit;
+    end;
+  end;
+
+  try
+    StrToFloat(Edit4.Text); // Verifica o preço
+  except
+    on E: EConvertError do
+    begin
+      ShowMessage('Preço inválido!');
+      Exit;
+    end;
+  end;
+
+  // Verificar se a conexão está aberta
+  if not fbanco.FDQuery1.Connection.Connected then
+  begin
+    ShowMessage('Conexão com o banco de dados não está aberta.');
+    Exit;
+  end;
+
+  // Configurar o FDQuery para a inserção (sem o campo ID)
+  fbanco.FDQuery1.Close;
+  fbanco.FDQuery1.SQL.Text :=
+    'INSERT INTO estoque (nomeProduto, qntProduto, valorProduto) ' +
+    'VALUES (:produto, :qntdproduto, :preco)';
+
+  // Associar os parâmetros da consulta
+  fbanco.FDQuery1.ParamByName('produto').AsString := Edit2.Text;
+  fbanco.FDQuery1.ParamByName('qntdproduto').AsInteger := StrToInt(Edit3.Text);
+  fbanco.FDQuery1.ParamByName('preco').AsFloat := StrToFloat(Edit4.Text);
+
+  // Executar a inserção no banco de dados
+  try
+    fbanco.FDQuery1.ExecSQL;
+    ShowMessage('Produto inserido com sucesso!');
+
+    // Obter o ID gerado automaticamente pelo banco
+    fbanco.FDQuery1.SQL.Text := 'SELECT LAST_INSERT_ID()';
+    // Recupera o ID gerado automaticamente
+    fbanco.FDQuery1.Open;
+
+    // Atribuir o ID gerado ao Edit1
+    Edit1.Text := fbanco.FDQuery1.Fields[0].AsString;
+
+    LerTabela; // Atualiza a tabela exibida no DBGrid
+  except
+    on E: Exception do
+    begin
+      ShowMessage('Erro ao inserir produto: ' + E.Message);
+    end;
+  end;
+end;
+
+// Ação do botão "Inserir" (chama o método de inserção)
+procedure TForm2.btnInserirClick(Sender: TObject);
+begin
+  InserirProduto; // Chama o método de inserção
+end;
+
+end.
